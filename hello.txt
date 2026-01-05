@@ -1,0 +1,2 @@
+let me see how merge conflicts happens.
+checking it with feature2.
