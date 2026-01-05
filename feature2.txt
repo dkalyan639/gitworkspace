@@ -1,0 +1,2 @@
+this is my second edit in feature2, i want this to get pushed to remote and merge it with main
+
