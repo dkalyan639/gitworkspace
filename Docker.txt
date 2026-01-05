@@ -1,0 +1,423 @@
+Docker: Concepts, Commands, Diagrams, and Practical Scenarios
+This document consolidates core Docker concepts, contrasts virtualization with containerization, and provides deeply practical, step-by-step scenarios suitable for classroom teaching or team training. It includes diagrams for visual learning and exhaustive command references.
+Virtualization vs Containerization
+•	Virtualization: Multiple guest operating systems run on a hypervisor over a host OS and bare metal. More layers → higher overhead.
+•	Containerization: Applications run as isolated processes using the host OS kernel via Docker/OCI runtimes. Fewer layers → lower overhead.
+•	Result: Containers typically start faster, use fewer resources, and are ideal for microservices and CI/CD, while VMs are stronger for full OS isolation and legacy workloads.
+ 
+Docker Editions and Setup
+•	Docker CE (Community Edition) and Docker EE (Enterprise Edition).
+•	Windows: Install Docker Desktop; use PowerShell/Terminal for commands.
+•	Linux (Ubuntu on AWS): 
+  curl -fsSL https://get.docker.com -o get-docker.sh
+  sh get-docker.sh
+Docker Architecture: Client, Daemon, Images, Containers, Registries
+•	Docker Client: CLI/API used to submit commands.
+•	Docker Daemon (dockerd): Executes container lifecycle, image pulls/builds, and networking.
+•	Docker Registry: Stores images (Docker Hub - public, Private registries like ECR).
+•	Docker Host: Machine where Docker is installed.
+ 
+Images vs Containers
+•	Image: Read-only layers containing binaries/libs and metadata. Built via Dockerfile or committed from a container.
+•	Container: A running instance of an image with an additional writable layer and runtime.
+ 
+Important Docker Commands – Images
+docker pull <image>
+docker search <term>
+docker push <image>
+docker images
+docker image ls
+docker image inspect <image>
+docker rmi <image>
+docker rmi -f <image>
+docker save <image> -o image.tar
+docker load -i image.tar
+docker system prune -af
+docker build -t <image>:<tag> .
+docker commit <container> <image>:<tag>
+Important Docker Commands – Containers
+docker container ls
+docker ps -a
+docker start <container>
+docker stop <container>
+docker restart [-t <sec>] <container>
+docker rm <container>
+docker rm -f <container>
+docker stop $(docker ps -aq)
+docker rm $(docker ps -aq)
+docker rm -f $(docker ps -aq)
+docker inspect <container>
+docker logs <container>
+docker run [options] <image>
+# Common run options:
+--name, --restart, -d, -it, -e, -v, --volumes-from, -p, -P, --link (deprecated), --network, --rm, -m, --cpus/-c, --ip
+docker port <container>
+docker exec -it <container> <process>
+docker attach <container>
+docker top <container>
+Docker Networking
+•	Types: bridge, host, none, overlay (Swarm).
+•	User-defined bridges isolate groups; overlay networks span multiple nodes in a Swarm.
+ 
+docker network ls
+docker network create --driver bridge <name>
+docker network inspect <name>
+docker network rm <name>
+docker network connect <network> <container>
+docker network disconnect <network> <container>
+# Custom subnet:
+docker network create --driver bridge --subnet=192.168.2.0/24 <name>
+Docker Volumes and Data Persistence
+•	Containers are ephemeral; use volumes to persist data.
+•	Host bind mounts, named volumes, and sharing volumes between containers.
+•	Bi-directional updates: changes in host reflect in container and vice versa (bind mounts)/named volumes.
+docker volume ls
+docker volume create <name>
+docker volume inspect <name>
+docker volume rm <name>
+# Mount examples:
+docker run -v /host/path:/container/path <image>
+docker run -v <volume_name>:/container/path <image>
+docker run --volumes-from <container> <image>
+Docker Compose: Multi-Container Architectures
+•	Compose uses YAML to define services, networks, and volumes.
+•	Reproducible deployment and easy lifecycle management.
+ 
+version: "3.8"
+services:
+  mydb:
+    image: mysql:5
+    environment:
+      MYSQL_ROOT_PASSWORD: intelliqit
+  mywordpress:
+    image: wordpress
+    ports:
+      - 8888:80
+    links:
+      - mydb:mysql
+
+# Lifecycle:
+docker-compose up -d
+docker-compose stop/start
+docker-compose down
+Practical Scenarios (Step-by-Step)
+Use Case 1: Nginx in Detached Mode with Port Mapping
+docker run --name webserver -p 8888:80 -d nginx
+# Verify:
+docker container ls
+# Access:
+http://<docker-host-public-ip>:8888
+Use Case 2: Tomcat (Tomee) with Automatic Port Mapping
+docker run --name appserver -d -P tomee
+docker port appserver
+# Access via mapped host port shown above
+Use Case 3: Jenkins with Port Mapping
+docker run --name myjenkins -d -p 9999:8080 jenkins/jenkins
+docker port myjenkins
+http://<docker-host-public-ip>:9999
+Use Case: MySQL Container, Root Login, Create Tables
+docker run --name db -d -e MYSQL_ROOT_PASSWORD=intelliqit mysql:5
+docker exec -it db bash
+mysql -u root -p  # password: intelliqit
+show databases;
+use sys;
+# Create emp/dept tables using SQL script; then:
+select * from emp;
+select * from dept;
+Use Case: Ubuntu/CentOS Interactive Containers
+docker run --name u1 -it ubuntu
+exit
+docker run --name mycentos -it centos
+exit
+Use Case: BusyBox Linking (Deprecated) demonstration
+docker run --name c1 -it busybox  # ctrl+p, ctrl+q to detach
+docker run --name c2 -it --link c1:mybusybox busybox
+ping c1
+Use Case: WordPress linked with MySQL (Legacy link demo)
+docker run --name mydb -d -e MYSQL_ROOT_PASSWORD=intelliqit mysql:5
+docker run --name mywordpress -d -p 8888:80 --link mydb:mysql wordpress
+docker container ls
+http://<docker-host-public-ip>:8888
+docker inspect mywordpress  # Check "Links"
+Use Case: CI/CD – Jenkins linked with Tomee QA/Prod
+docker run --name myjenkins -d -p 5050:8080 jenkins/jenkins
+docker run --name qaserver -d -p 6060:8080 --link myjenkins:jenkins tomee
+docker run --name prodserver -d -p 7070:8080 --link myjenkins:jenkins tomee
+docker container ls
+Use Cases: Volumes
+# Simple host volume mount
+mkdir /data
+docker run --name u1 -it -v /data:/data ubuntu
+cd /data && touch file1 file2 file3
+docker inspect u1  # Check Mounts->Source
+docker rm -f u1
+ls <source_path>
+
+# Share volume between containers
+docker run --name c1 -it -v /data:/data centos
+docker run --name c2 -it --volumes-from c1 centos
+docker run --name c3 -it --volumes-from c2 centos
+docker inspect c1  # Source path
+docker rm -f c1 c2 c3
+
+# Named volume
+docker volume create myvolume
+docker volume inspect myvolume
+docker run --name c1 -it -v myvolume:/tmp centos
+cd /tmp && ls
+Use Case: Tomcat users via named volume
+docker volume create newvolume
+# Create tomcat-users.xml in host at MountPoint
+docker run --name webserver -d -P -v newvolume:/tmp tomcat
+docker exec -it webserver bash
+mv /tmp/tomcat-users.xml conf/
+Building Custom Images (Dockerfile)
+•	Core instructions: FROM, MAINTAINER (deprecated; use LABEL), RUN, USER, COPY, ADD, EXPOSE, VOLUME, WORKDIR, ENV, CMD, ENTRYPOINT, LABEL, SHELL.
+•	Cache busting: use --no-cache when building if packages may be outdated.
+# Example: Nginx base
+FROM nginx
+MAINTAINER intelliqit
+
+# Build
+docker build -t mynginx .
+
+# Example: Ubuntu with git
+FROM ubuntu
+MAINTAINER intelliqit
+RUN apt-get update && apt-get install -y git
+
+docker build -t myubuntu .
+
+# Cache busting
+docker build --no-cache -t myubuntu .
+
+# Example: Install via downloaded script
+FROM ubuntu
+MAINTAINER intelliqit
+COPY get-docker.sh /
+RUN sh /get-docker.sh
+
+# Example: Ansible image
+FROM ubuntu
+RUN apt-get update && apt-get install -y software-properties-common ansible
+
+# Example: Jenkins WAR in image
+FROM ubuntu
+ADD https://get.jenkins.io/war-stable/2.263.4/jenkins.war /
+
+# Example: Jenkins base as root
+FROM jenkins/jenkins
+USER root
+
+# Example: Expose 90 on nginx
+FROM nginx
+EXPOSE 90
+
+# Example: Volume in image
+FROM ubuntu
+VOLUME /data
+
+# Example: Jenkins-like Ubuntu
+FROM ubuntu
+RUN apt-get update && apt-get install -y openjdk-11-jdk
+ADD https://get.jenkins.io/war-stable/2.426.2/jenkins.war /
+ENTRYPOINT ["java","-jar","jenkins.war"]
+
+# Example: Ubuntu behave like nginx
+FROM ubuntu
+RUN apt-get update && apt-get install -y nginx
+ENTRYPOINT ["/usr/sbin/nginx","-g","daemon off;"]
+EXPOSE 80
+CMD vs ENTRYPOINT
+FROM ubuntu
+RUN apt-get update && apt-get install -y nginx
+CMD ["/usr/sbin/nginx","-g","daemon off;"]
+EXPOSE 80
+
+# Override default process at run-time:
+# docker run --name u1 -d -P myubuntu ls -la
+Compose Advanced: Multi-Networks, Volumes, Build
+# Two networks
+version: "3.8"
+services:
+  myjenkins:
+    image: jenkins/jenkins
+    ports:
+      - 5050:8080
+    networks:
+      - abc
+  qaserver:
+    image: tomee
+    ports:
+      - 6060:8080
+    networks:
+      - xyz
+  prodserver:
+    image: tomee
+    ports:
+      - 7070:8080
+    networks:
+      - xyz
+networks:
+  abc: {}
+  xyz: {}
+
+# Volumes per service
+version: "3.8"
+services:
+  db:
+    image: mysql:5
+    environment:
+      MYSQL_ROOT_PASSWORD: intelliqit
+    volumes:
+      - mydb:/var/lib/mysql
+  wordpress:
+    image: wordpress
+    ports:
+      - 9999:80
+    volumes:
+      - wordpress:/var/www/html
+volumes:
+  mydb:
+  wordpress:
+
+# Build from Dockerfile in Compose
+version: "3.8"
+services:
+  jenkins:
+    build: .
+    ports:
+      - 7070:8080
+  mytomcat:
+    image: tomee
+    ports:
+      - 6060:8080
+Docker Swarm: Setup, Services, Scaling, Updates
+•	Swarm ports: 2377 (manager), 7946 TCP/UDP (node comms), 4789 UDP (overlay).
+•	Initialize on Manager with docker swarm init; join workers using token.
+•	Service creation, replicas, scaling, rolling updates, placement constraints.
+# Create service with replicas & port
+docker service create --name webserver -p 8888:80 --replicas 5 nginx
+docker service ls
+docker service ps webserver
+
+# Scale
+docker service scale webserver=8
+docker service scale webserver=2
+
+# Rolling update
+docker service create --name myredis --replicas 5 redis:3
+docker service update --image redis:4 myredis
+docker service update --rollback myredis
+
+# Node availability
+docker node update --availability drain Worker1
+docker node update --availability active Worker1
+docker swarm leave [--force]
+docker swarm join-token worker|manager
+docker node promote Worker1
+docker node demote Worker1
+Manager Failover and Quorum (RAFT)
+•	Maintain more than half of manager nodes to preserve quorum.
+•	Leader election ensures continuity; add managers for fault tolerance.
+Overlay Networks in Swarm
+docker network create --driver overlay intelliqit1
+docker network create --driver overlay intelliqit2
+docker service create --name webserver -p 8888:80 --replicas 5 --network intelliqit1 httpd
+docker service create --name appserver -p 9999:8080 --replicas 5 tomcat
+docker service update --network-add intelliqit2 appserver
+docker service update --network-rm intelliqit2 appserver
+Docker Stack (Compose on Swarm)
+docker stack deploy -c <compose.yml> <stack_name>
+docker stack ls
+docker stack ps <stack_name>
+docker stack rm <stack_name>
+
+# Example: WordPress (3 replicas) + MySQL
+version: "3.8"
+services:
+  db:
+    image: mysql:5
+    environment:
+      MYSQL_ROOT_PASSWORD: intelliqit
+  wordpress:
+    image: wordpress
+    ports:
+      - "8989:80"
+  deploy:
+    replicas: 3
+Placement Constraints and Resource Limits
+# Placement constraints
+deploy:
+  placement:
+    constraints:
+      - node.hostname == Manager
+
+# Resource limits
+deploy:
+  resources:
+    limits:
+      cpus: "0.1"
+      memory: "300M"
+Global Mode
+docker service create --name mynginx -p 8989:80 --mode global nginx
+docker service ls
+Docker Secrets
+echo "Hello Intelliqit" | docker secret create mysecret -
+docker service create --name myredis --replicas 5 --secret mysecret redis
+docker exec -it <replica-container-id> cat /run/secrets/mysecret
+Advanced Diagrams
+ 
+ 
+ 
+ 
+Hands-on Lab Exercises
+Lab 1: Networking
+Create two custom bridge networks and connect containers:
+docker network create --driver bridge net1
+docker network create --driver bridge net2
+docker run --name c1 -it --network net1 busybox
+docker run --name c2 -it --network net2 busybox
+Test connectivity and then connect c2 to net1:
+docker network connect net1 c2
+Lab 2: Volumes
+Create a named volume and mount it:
+docker volume create datavol
+docker run --name u1 -it -v datavol:/data ubuntu
+Create files in /data and verify persistence after container removal.
+Lab 3: Docker Compose
+Write a docker-compose.yml to run WordPress + MySQL:
+version: "3.8"
+services:
+  db:
+    image: mysql:5
+    environment:
+      MYSQL_ROOT_PASSWORD: pass
+  wordpress:
+    image: wordpress
+    ports:
+      - 8080:80
+Run:
+  docker-compose up -d
+Verify in browser.
+Lab 4: Swarm and Scaling
+Initialize swarm and deploy a service:
+docker swarm init
+docker service create --name web --replicas 3 -p 8080:80 nginx
+Scale up/down:
+docker service scale web=6
+Perform rolling update:
+docker service update --image nginx:latest web
+Lab 5: Docker Stack
+Create stack file stack.yml:
+version: "3.8"
+services:
+  app:
+    image: httpd
+    deploy:
+      replicas: 4
+Deploy:
+  docker stack deploy -c stack.yml mystack
+Check:
+  docker stack ps mystack
+
